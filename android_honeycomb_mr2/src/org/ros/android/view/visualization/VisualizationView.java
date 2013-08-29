@@ -23,6 +23,7 @@ import android.graphics.PixelFormat;
 import android.opengl.GLSurfaceView;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
+
 import org.ros.android.view.visualization.layer.Layer;
 import org.ros.exception.RosRuntimeException;
 import org.ros.message.MessageListener;
@@ -34,6 +35,7 @@ import org.ros.node.NodeMain;
 import org.ros.node.topic.Subscriber;
 import org.ros.rosjava_geometry.FrameTransformTree;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
@@ -43,129 +45,146 @@ import java.util.concurrent.CountDownLatch;
  */
 public class VisualizationView extends GLSurfaceView implements NodeMain {
 
-  private static final boolean DEBUG = false;
+	private static final boolean DEBUG = false;
 
-  private final NameResolver nameResolver = NameResolver.newRoot();
-  private final FrameTransformTree frameTransformTree = new FrameTransformTree(nameResolver);
-  private final Camera camera = new Camera(frameTransformTree);
-  private final XYOrthographicRenderer renderer = new XYOrthographicRenderer(camera);
-  private final List<Layer> layers = Lists.newArrayList();
-  private final CountDownLatch attachedToWindow = new CountDownLatch(1);
+	private final NameResolver nameResolver = NameResolver.newRoot();
+	private final FrameTransformTree frameTransformTree = new FrameTransformTree(nameResolver);
+	private final Camera camera = new Camera(frameTransformTree);
+	private final XYOrthographicRenderer renderer = new XYOrthographicRenderer(camera);
+	private final List<Layer> layers = Lists.newArrayList();
+	private final CountDownLatch attachedToWindow = new CountDownLatch(1);
+	private final List<Layer> layersSequence = Lists.newArrayList();
 
-  private ConnectedNode connectedNode;
+	private ConnectedNode connectedNode;
 
-  public VisualizationView(Context context) {
-    super(context);
-    init();
-  }
+	public VisualizationView(Context context) {
+		super(context);
+		init();
+	}
 
-  public VisualizationView(Context context, AttributeSet attrs) {
-    super(context, attrs);
-    init();
-  }
+	public VisualizationView(Context context, AttributeSet attrs) {
+		super(context, attrs);
+		init();
+	}
 
-  private void init() {
-    if (DEBUG) {
-      // Turn on OpenGL error-checking and logging.
-      setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
-    }
-    setEGLConfigChooser(8, 8, 8, 8, 0, 0);
-    getHolder().setFormat(PixelFormat.TRANSLUCENT);
-    setRenderer(renderer);
-  }
+	private void init() {
+		if (DEBUG) {
+			// Turn on OpenGL error-checking and logging.
+			setDebugFlags(DEBUG_CHECK_GL_ERROR | DEBUG_LOG_GL_CALLS);
+		}
+		setEGLConfigChooser(8, 8, 8, 8, 0, 0);
+		getHolder().setFormat(PixelFormat.TRANSLUCENT);
+		setRenderer(renderer);
+	}
 
-  @Override
-  public GraphName getDefaultNodeName() {
-    return GraphName.of("android_honeycomb_mr2/visualization_view");
-  }
+	@Override
+	public GraphName getDefaultNodeName() {
+		return GraphName.of("android_honeycomb_mr2/visualization_view");
+	}
 
-  @Override
-  public boolean onTouchEvent(MotionEvent event) {
-    for (Layer layer : Lists.reverse(layers)) {
-      if (layer.onTouchEvent(this, event)) {
-        return true;
-      }
-    }
-    return false;
-  }
+	@Override
+	public boolean onTouchEvent(MotionEvent event) {
+		for (Layer layer : Lists.reverse(layers)) {
+			if (layer.onTouchEvent(this, event)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
-  public XYOrthographicRenderer getRenderer() {
-    return renderer;
-  }
+	public XYOrthographicRenderer getRenderer() {
+		return renderer;
+	}
 
-  public Camera getCamera() {
-    return camera;
-  }
+	public Camera getCamera() {
+		return camera;
+	}
 
-  /**
-   * Adds a new layer at the end of the layers collection. The new layer will be
-   * drawn last, i.e. on top of all other layers.
-   * 
-   * @param layer
-   *          layer to add
-   */
-  public void addLayer(Layer layer) {
-    layers.add(layer);
-  }
+	/**
+	 * Adds a new layer at the end of the layers collection. The new layer will be
+	 * drawn last, i.e. on top of all other layers.
+	 * 
+	 * @param layer
+	 *          layer to add
+	 */
+	public void addLayer(Layer layer, int pos) {
 
-  public void removeLayer(Layer layer) {
-    layer.onShutdown(this, connectedNode);
-    layers.remove(layer);
-  }
+		synchronized(layers) {
+			
+			if(pos >= layers.size()) {
+				layers.add(layer);
+			} else {
+			layers.add(pos, layer);
+			}
+			
+		}	 
+	}
 
-  @Override
-  public void onStart(ConnectedNode connectedNode) {
-    this.connectedNode = connectedNode;
-    startTransformListener();
-    try {
-      attachedToWindow.await();
-    } catch (InterruptedException e) {
-      throw new RosRuntimeException(e);
-    }
-    // startLayers() must be called after we've attached to the window in order
-    // to ensure that getHandler() will not return null.
-    startLayers();
-  }
+	public void removeLayer(Layer layer) {
+		synchronized (layers) {
+			layers.remove(layer);
+		}
+	}
 
-  @Override
-  protected void onAttachedToWindow() {
-    super.onAttachedToWindow();
-    attachedToWindow.countDown();
-  }
+	public void setSequence() {
+		layersSequence.addAll(layers);
+	}
+	
+	@Override
+	public void onStart(ConnectedNode connectedNode) {
+		this.connectedNode = connectedNode;
+		startTransformListener();
+		try {
+			attachedToWindow.await();
+		} catch (InterruptedException e) {
+			throw new RosRuntimeException(e);
+		}
+		// startLayers() must be called after we've attached to the window in order
+		// to ensure that getHandler() will not return null.
+		startLayers();
+	}
 
-  private void startTransformListener() {
-    Subscriber<tf.tfMessage> tfSubscriber = connectedNode.newSubscriber("tf", tf.tfMessage._TYPE);
-    tfSubscriber.addMessageListener(new MessageListener<tf.tfMessage>() {
-      @Override
-      public void onNewMessage(tf.tfMessage message) {
-        for (geometry_msgs.TransformStamped transform : message.getTransforms()) {
-          frameTransformTree.update(transform);
-        }
-      }
-    });
-  }
+	@Override
+	protected void onAttachedToWindow() {
+		super.onAttachedToWindow();
+		attachedToWindow.countDown();
+	}
 
-  private void startLayers() {
-    for (Layer layer : layers) {
-      layer.onStart(connectedNode, getHandler(), frameTransformTree, camera);
-    }
-    renderer.setLayers(layers);
-  }
+	private void startTransformListener() {
+		Subscriber<tf.tfMessage> tfSubscriber = connectedNode.newSubscriber("tf", tf.tfMessage._TYPE);
+		tfSubscriber.addMessageListener(new MessageListener<tf.tfMessage>() {
+			@Override
+			public void onNewMessage(tf.tfMessage message) {
+				for (geometry_msgs.TransformStamped transform : message.getTransforms()) {
+					frameTransformTree.update(transform);
+				}
+			}
+		});
+	}
 
-  @Override
-  public void onShutdown(Node node) {
-    renderer.setLayers(null);
-    for (Layer layer : layers) {
-      layer.onShutdown(this, node);
-    }
-    this.connectedNode = null;
-  }
+	private void startLayers() {
+		for (Layer layer : layers) {
+			layer.onStart(connectedNode, getHandler(), frameTransformTree, camera);
+		}
+		renderer.setLayers(layers);
+	}
+	
+	@Override
+	public void onShutdown(Node node) {
+		
+		renderer.setLayers(null);
+		
+//		for (Layer layer : layers) {
+//			layer.onShutdown(this, node);
+//		}
+//		this.connectedNode = null;
+	}
 
-  @Override
-  public void onShutdownComplete(Node node) {
-  }
+	@Override
+	public void onShutdownComplete(Node node) {
+	}
 
-  @Override
-  public void onError(Node node, Throwable throwable) {
-  }
+	@Override
+	public void onError(Node node, Throwable throwable) {
+	}
 }

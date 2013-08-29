@@ -50,8 +50,8 @@ public class TextureBitmap implements OpenGlDrawable {
   private final FloatBuffer textureVertices;
   private final Object mutex;
 
-  private Bitmap bitmapFront;
-  private Bitmap bitmapBack;
+  private Bitmap bitmapFront = null;
+  private Bitmap bitmapBack = null;
   private int[] handle;
   private Transform origin;
   private double scaledWidth;
@@ -151,6 +151,7 @@ public class TextureBitmap implements OpenGlDrawable {
 
   @Override
   public void draw(GL10 gl) {
+//	gl.glClear(GL10.GL_COLOR_BUFFER_BIT | GL10.GL_DEPTH_BUFFER_BIT);
     gl.glEnable(GL10.GL_TEXTURE_2D);
     bind(gl);
     gl.glPushMatrix();
@@ -166,5 +167,13 @@ public class TextureBitmap implements OpenGlDrawable {
     gl.glDisableClientState(GL10.GL_TEXTURE_COORD_ARRAY);
     gl.glPopMatrix();
     gl.glDisable(GL10.GL_TEXTURE_2D);
+
   }
+
+public void recycle() {
+	
+	bitmapFront.recycle();
+	bitmapBack.recycle();
+	
+}
 }

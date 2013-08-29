@@ -36,82 +36,91 @@ import javax.microedition.khronos.opengles.GL10;
  */
 public class OccupancyGridLayer extends SubscriberLayer<nav_msgs.OccupancyGrid> implements TfLayer {
 
-  /**
-   * Color of occupied cells in the map.
-   */
-  private static final int COLOR_OCCUPIED = 0xdfffffff;
+	/**
+	 * Color of occupied cells in the map.
+	 */
+	private static final int COLOR_OCCUPIED = 0xdfffffff;
 
-  /**
-   * Color of free cells in the map.
-   */
-  private static final int COLOR_FREE = 0xff8d8d8d;
+	/**
+	 * Color of free cells in the map.
+	 */
+	private static final int COLOR_FREE = 0xff8d8d8d;
 
-  /**
-   * Color of unknown cells in the map.
-   */
-  private static final int COLOR_UNKNOWN = 0xff000000;
+	/**
+	 * Color of unknown cells in the map.
+	 */
+	private static final int COLOR_UNKNOWN = 0xff000000;
 
-  private final ChannelBuffer pixels;
-  private final TextureBitmap textureBitmap;
+	private ChannelBuffer pixels = null;
+	private TextureBitmap textureBitmap = null;
 
-  private boolean ready;
-  private GraphName frame;
+	private boolean ready;
+	private GraphName frame;
 
-  public OccupancyGridLayer(String topic) {
-    this(GraphName.of(topic));
-  }
+	public OccupancyGridLayer(String topic) {
+		this(GraphName.of(topic));
+	}
 
-  public OccupancyGridLayer(GraphName topic) {
-    super(topic, nav_msgs.OccupancyGrid._TYPE);
-    pixels = MessageBuffers.dynamicBuffer();
-    textureBitmap = new TextureBitmap();
-    ready = false;
-  }
+	public OccupancyGridLayer(GraphName topic) {
+		super(topic, nav_msgs.OccupancyGrid._TYPE);
+		pixels = MessageBuffers.dynamicBuffer();
+		textureBitmap = new TextureBitmap();
+		ready = false;
+	}
 
-  @Override
-  public void draw(GL10 gl) {
-    if (ready) {
-      textureBitmap.draw(gl);
-    }
-  }
+	@Override
+	public void draw(GL10 gl) {
+		if (ready) {
 
-  @Override
-  public GraphName getFrame() {
-    return frame;
-  }
+			textureBitmap.draw(gl);
+		}
+	}
 
-  @Override
-  public void onStart(ConnectedNode connectedNode, Handler handler,
-      FrameTransformTree frameTransformTree, Camera camera) {
-    super.onStart(connectedNode, handler, frameTransformTree, camera);
-    getSubscriber().addMessageListener(new MessageListener<nav_msgs.OccupancyGrid>() {
-      @Override
-      public void onNewMessage(nav_msgs.OccupancyGrid message) {
-        update(message);
-      }
-    });
-  }
+	@Override
+	public GraphName getFrame() {
+		return frame;
+	}
 
-  private void update(nav_msgs.OccupancyGrid message) {
-    int stride = message.getInfo().getWidth();
-    Preconditions.checkArgument(stride <= 1024);
-    Preconditions.checkArgument(message.getInfo().getHeight() <= 1024);
-    ChannelBuffer buffer = message.getData();
-    while (buffer.readable()) {
-      byte pixel = buffer.readByte();
-      if (pixel == -1) {
-        pixels.writeInt(COLOR_UNKNOWN);
-      } else if (pixel == 0) {
-        pixels.writeInt(COLOR_FREE);
-      } else {
-        pixels.writeInt(COLOR_OCCUPIED);
-      }
-    }
-    float resolution = message.getInfo().getResolution();
-    Transform origin = Transform.fromPoseMessage(message.getInfo().getOrigin());
-    textureBitmap.updateFromPixelBuffer(pixels, stride, resolution, origin, COLOR_UNKNOWN);
-    pixels.clear();
-    frame = GraphName.of(message.getHeader().getFrameId());
-    ready = true;
-  }
+	@Override
+	public void onStart(ConnectedNode connectedNode, Handler handler,
+			FrameTransformTree frameTransformTree, Camera camera) {
+		super.onStart(connectedNode, handler, frameTransformTree, camera);
+		getSubscriber().addMessageListener(new MessageListener<nav_msgs.OccupancyGrid>() {
+			@Override
+			public void onNewMessage(nav_msgs.OccupancyGrid message) {
+				update(message);
+			}
+		});
+	}
+
+	private void update(nav_msgs.OccupancyGrid message) {
+		Preconditions.checkArgument(message.getInfo().getHeight() <= 1024);
+		int stride = message.getInfo().getWidth();
+		Preconditions.checkArgument(stride <= 1024);
+
+		ChannelBuffer buffer = message.getData();
+
+		while (buffer.readable()) {
+			byte pixel = buffer.readByte();
+			if (pixel == -1) {
+				pixels.writeInt(COLOR_UNKNOWN);
+			} else if (pixel == 0) {
+				pixels.writeInt(COLOR_FREE);
+			} else {
+				pixels.writeInt(COLOR_OCCUPIED);
+			}
+
+			pixels.clear();
+		}
+		float resolution = message.getInfo().getResolution();
+		Transform origin = Transform.fromPoseMessage(message.getInfo().getOrigin());
+		textureBitmap.updateFromPixelBuffer(pixels, stride, resolution, origin, COLOR_UNKNOWN);
+		frame = GraphName.of(message.getHeader().getFrameId());
+		ready = true;
+	}
+	
+	public void recycle() {
+		textureBitmap.recycle();
+		System.gc();
+	}
 }

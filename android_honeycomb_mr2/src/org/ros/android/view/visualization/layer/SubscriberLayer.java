@@ -35,7 +35,7 @@ public class SubscriberLayer<T> extends DefaultLayer {
   private final GraphName topicName;
   private final String messageType;
 
-  private Subscriber<T> subscriber;
+  private Subscriber<T> subscriber = null;
 
   public SubscriberLayer(GraphName topicName, String messageType) {
     this.topicName = topicName;

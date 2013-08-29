@@ -128,4 +128,5 @@ public class PosePublisherLayer extends DefaultLayer {
   public void onShutdown(VisualizationView view, Node node) {
     posePublisher.shutdown();
   }
+
 }

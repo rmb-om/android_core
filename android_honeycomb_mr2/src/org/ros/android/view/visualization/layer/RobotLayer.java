@@ -45,6 +45,7 @@ public class RobotLayer extends DefaultLayer implements TfLayer {
 
   @Override
   public void draw(GL10 gl) {
+	
     shape.draw(gl);
   }
 

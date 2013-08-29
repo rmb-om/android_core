@@ -86,10 +86,10 @@ public class MainActivity extends RosActivity {
       }
 
     });
-    visualizationView.addLayer(cameraControlLayer);
-    visualizationView.addLayer(new CompressedOccupancyGridLayer("map/png"));
-    visualizationView.addLayer(new LaserScanLayer("scan"));
-    visualizationView.addLayer(new RobotLayer(ROBOT_FRAME));
+//    visualizationView.addLayer( cameraControlLayer);
+//    visualizationView.addLayer(new CompressedOccupancyGridLayer("map/png"));
+//    visualizationView.addLayer(new LaserScanLayer("scan"));
+//    visualizationView.addLayer(new RobotLayer(ROBOT_FRAME));
     NodeConfiguration nodeConfiguration =
         NodeConfiguration.newPublic(InetAddressFactory.newNonLoopback().getHostAddress(),
             getMasterUri());

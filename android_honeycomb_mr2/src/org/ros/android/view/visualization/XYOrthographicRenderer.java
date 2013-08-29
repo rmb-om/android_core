@@ -17,6 +17,8 @@
 package org.ros.android.view.visualization;
 
 import android.opengl.GLSurfaceView;
+import android.util.Log;
+
 import org.ros.android.view.visualization.layer.Layer;
 import org.ros.android.view.visualization.layer.TfLayer;
 import org.ros.namespace.GraphName;
@@ -34,64 +36,82 @@ import javax.microedition.khronos.opengles.GL10;
  */
 public class XYOrthographicRenderer implements GLSurfaceView.Renderer {
 
-  /**
-   * List of layers to draw. Layers are drawn in-order, i.e. the layer with
-   * index 0 is the bottom layer and is drawn first.
-   */
-  private List<Layer> layers;
+	/**
+	 * List of layers to draw. Layers are drawn in-order, i.e. the layer with
+	 * index 0 is the bottom layer and is drawn first.
+	 */
+	private List<Layer> layers;
 
-  private Camera camera;
+	private Camera camera;
 
-  public XYOrthographicRenderer(Camera camera) {
-    this.camera = camera;
-  }
+	private String LOG_TAG = "XYOrthogaphicRenderer";
 
-  @Override
-  public void onSurfaceChanged(GL10 gl, int width, int height) {
-    Viewport viewport = new Viewport(width, height);
-    viewport.apply(gl);
-    camera.setViewport(viewport);
-    gl.glMatrixMode(GL10.GL_MODELVIEW);
-    gl.glEnable(GL10.GL_BLEND);
-    gl.glBlendFunc(GL10.GL_SRC_ALPHA, GL10.GL_ONE_MINUS_SRC_ALPHA);
-    gl.glDisable(GL10.GL_DEPTH_TEST);
-  }
+	public XYOrthographicRenderer(Camera camera) {
+		this.camera = camera;
+	}
 
-  @Override
-  public void onDrawFrame(GL10 gl) {
-    gl.glClear(GL10.GL_COLOR_BUFFER_BIT);
-    gl.glLoadIdentity();
-    camera.apply(gl);
-    drawLayers(gl);
-  }
+	@Override
+	public void onSurfaceChanged(GL10 gl, int width, int height) {
+		Viewport viewport = new Viewport(width, height);
+		viewport.apply(gl);
+		camera.setViewport(viewport);
+		gl.glMatrixMode(GL10.GL_MODELVIEW);
+		gl.glEnable(GL10.GL_BLEND);
+		gl.glBlendFunc(GL10.GL_SRC_ALPHA, GL10.GL_ONE_MINUS_SRC_ALPHA);
+		gl.glDisable(GL10.GL_DEPTH_TEST);
+	}
 
-  @Override
-  public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-  }
+	@Override
+	public void onDrawFrame(GL10 gl) {
+		gl.glClear(GL10.GL_COLOR_BUFFER_BIT | GL10.GL_DEPTH_BUFFER_BIT | GL10.GL_STENCIL_BUFFER_BIT );
+		gl.glEnable(GL10.GL_TEXTURE_2D);
+		gl.glLoadIdentity();
+		camera.apply(gl);
+		drawLayers(gl);
+		gl.glFinish();
+		gl.glFlush();
+		gl.glDisable(GL10.GL_TEXTURE_2D);
+	}
 
-  private void drawLayers(GL10 gl) {
-    if (layers == null) {
-      return;
-    }
-    for (Layer layer : getLayers()) {
-      gl.glPushMatrix();
-      if (layer instanceof TfLayer) {
-        GraphName layerFrame = ((TfLayer) layer).getFrame();
-        if (layerFrame != null && camera.applyFrameTransform(gl, layerFrame)) {
-          layer.draw(gl);
-        }
-      } else {
-        layer.draw(gl);
-      }
-      gl.glPopMatrix();
-    }
-  }
+	@Override
+	public void onSurfaceCreated(GL10 gl, EGLConfig config) {
 
-  public List<Layer> getLayers() {
-    return layers;
-  }
+	     String s = gl.glGetString(GL10.GL_EXTENSIONS);
 
-  public void setLayers(List<Layer> layers) {
-    this.layers = layers;
-  }
+	     if (s.contains("GL_IMG_texture_compression_pvrtc")){
+	          //Use PVR compressed textures  
+	    	 Log.i(LOG_TAG , "GL_IMG_texture_compression_pvrtc");
+	     }else{
+	         //Handle no texture compression founded.  
+	    	 Log.i(LOG_TAG, "else no");
+	     }
+	}
+
+	private void drawLayers(GL10 gl) {
+		if (layers == null) {
+			return;
+		}
+		synchronized(layers) {	
+			for (Layer layer : getLayers()) {
+				gl.glPushMatrix();
+				if (layer instanceof TfLayer) {
+					GraphName layerFrame = ((TfLayer) layer).getFrame();
+					if (layerFrame != null && camera.applyFrameTransform(gl, layerFrame)) {
+						layer.draw(gl);
+					}
+				} else {
+					layer.draw(gl);
+				}
+				gl.glPopMatrix();
+			}
+		}
+	}
+
+	public List<Layer> getLayers() {
+		return layers;
+	}
+
+	public void setLayers(List<Layer> layers) {
+		this.layers = layers;
+	}
 }
